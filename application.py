@@ -44,13 +44,25 @@ class Context:
         self.request = Request(req)
         self._resp = resp
     
+    def set_response(self, src):
+        body = src.get_body()
+        if body != None:
+            self._resp.set_body(body)
+
+        c = src.marshal_cookies()
+        if c != None and len(c) > 0:
+            self._resp.add_header("Set-Cookie", c)
+        
+        for k in src.headers:
+            self._resp.add_header(k, src.headers[k])
+    
     def run(self):
         r = self.func(self)
         if type(r) == str or type(r) == bytes:
             r = Response(r)
         if isinstance(r, Response) == False:
             raise Exception("Return value of the view function is not a Response.")
-        self._resp.set_body(r.get_body())
+        self.set_response(r)
     
     async def run_async(self):
         r = await self.func(self)
@@ -58,7 +70,7 @@ class Context:
             r = Response(r)
         if isinstance(r, Response) == False:
             raise Exception("Return value of the view function is not a Response.")
-        self._resp.set_body(r.get_body())
+        self.set_response(r)
     
     def jsonify(self, data):
         return Response(json.dumps(data))
@@ -121,8 +133,28 @@ class RequestKV:
         return ret
 
 class Response:
-    def __init__(self, body):
+    def __init__(self, body = None):
         self.body = body
+        self.cookies = {}
+        self.headers = {}
     
     def get_body(self):
         return self.body
+    
+    def set_cookie(self, k, v):
+        self.cookies[k] = v
+    
+    def marshal_cookies(self):
+        c = http.cookies.SimpleCookie()
+        for k in self.cookies:
+            c[k] = self.cookies[k]
+        return c.output(header = "").strip()
+    
+    def set_body(self, data):
+        self.body = data
+    
+    def add_header(self, k, v):
+        self.headers[k] = v
+    
+    def set_header(self, k, v):
+        self.add_header(k, v)

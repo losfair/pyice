@@ -20,10 +20,10 @@ const char * ice_glue_request_get_remote_addr(Resource req);
 const char * ice_glue_request_get_method(Resource req);
 const char * ice_glue_request_get_uri(Resource req);
 
-const char * ice_glue_request_add_header(Resource t, const char *k, const char *v);
+void ice_glue_request_add_header(Resource t, const char *k, const char *v);
 const char * ice_glue_request_get_header(Resource t, const char *k);
 
-const char * ice_glue_response_add_header(Resource t, const char *k, const char *v);
+void ice_glue_response_add_header(Resource t, const char *k, const char *v);
 const char * ice_glue_response_get_header(Resource t, const char *k);
 
 Resource ice_glue_create_response();
@@ -148,7 +148,7 @@ class Response:
     
     def add_header(self, k, v):
         lib.ice_glue_response_add_header(self.handle, k.encode(), v.encode())
-    
+
     def set_body(self, data):
         if type(data) == str:
             data = data.encode()

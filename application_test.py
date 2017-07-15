@@ -26,9 +26,9 @@ async def on_current_time(ctx):
 async def on_cookies(ctx):
     k = "test_cookie"
 
-    return ctx.jsonify({
-        "key": k,
-        "value": ctx.request.cookies[k]
-    })
+    resp = application.Response(str(ctx.request.cookies.get(k)))
+    resp.set_cookie(k, str(time.time()))
+
+    return resp
 
 app.core.listen("127.0.0.1:1405")
