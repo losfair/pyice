@@ -77,12 +77,14 @@ class Context:
 
 class Request:
     def __init__(self, under):
+        self.raw_args = None
         self.raw_form = None
         self.raw_cookies = None
         self.under = under
-        self.headers = RequestKV(lambda k: self.under.get_header(k))
-        self.form = RequestKV(lambda k: self.get_form_item(k))
+        self.headers = RequestKV(self.under.get_header)
+        self.form = RequestKV(self.get_form_item)
         self.cookies = RequestKV(self.get_cookie_item)
+        self.args = RequestKV(self.get_arg)
     
     def json(self):
         return json.loads(self.under.get_body())
@@ -111,6 +113,20 @@ class Request:
             return None
         else:
             return v.value
+    
+    def get_arg(self, k):
+        if self.raw_args == None:
+            p = self.under.get_uri().decode()
+            if p == None or len(p) == 0:
+                self.raw_args = {}
+            else:
+                p = p.split("?")
+                if len(p) < 2:
+                    self.raw_args = {}
+                else:
+                    self.raw_args = urllib.parse.parse_qs(p[1])
+        
+        return self.raw_args.get(k)
 
 class RequestKV:
     def __init__(self, getter):

@@ -7,6 +7,7 @@ app = application.Application()
 def on_hello_world(ctx):
     print(ctx.request.headers.get("aaa"))
     print(ctx.request.form.get("bbb"))
+    print(ctx.request.args.get("zzz"))
     return "Hello world!"
 
 @app.route("/hello_world_async", methods = ["POST"])
