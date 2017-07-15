@@ -22,4 +22,13 @@ async def on_current_time(ctx):
         "time": time.time()
     })
 
+@app.route("/cookies", methods = ["GET"])
+async def on_cookies(ctx):
+    k = "test_cookie"
+
+    return ctx.jsonify({
+        "key": k,
+        "value": ctx.request.cookies[k]
+    })
+
 app.core.listen("127.0.0.1:1405")

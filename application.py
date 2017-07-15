@@ -2,6 +2,7 @@ import pyice_cffi as pyice
 import json
 import asyncio
 import urllib.parse
+import http.cookies
 
 class Application:
     def __init__(self):
@@ -65,9 +66,11 @@ class Context:
 class Request:
     def __init__(self, under):
         self.raw_form = None
+        self.raw_cookies = None
         self.under = under
         self.headers = RequestKV(lambda k: self.under.get_header(k))
         self.form = RequestKV(lambda k: self.get_form_item(k))
+        self.cookies = RequestKV(self.get_cookie_item)
     
     def json(self):
         return json.loads(self.under.get_body())
@@ -76,10 +79,26 @@ class Request:
         if self.raw_form == None:
             raw_body = self.under.get_body()
             if raw_body == None:
-                raise Exception("Empty request body")
-            self.raw_form = urllib.parse.parse_qs(self.under.get_body().decode())
+                self.raw_form = {}
+            else:
+                self.raw_form = urllib.parse.parse_qs(self.under.get_body().decode())
         
         return self.raw_form.get(k)
+    
+    def get_cookie_item(self, k):
+        if self.raw_cookies == None:
+            raw_cookies_str = self.under.get_header("Cookie").decode()
+            if raw_cookies_str == None or len(raw_cookies_str) == 0:
+                self.raw_cookies = {}
+            else:
+                self.raw_cookies = http.cookies.SimpleCookie()
+                self.raw_cookies.load(raw_cookies_str)
+        
+        v = self.raw_cookies.get(k)
+        if v == None:
+            return None
+        else:
+            return v.value
 
 class RequestKV:
     def __init__(self, getter):
