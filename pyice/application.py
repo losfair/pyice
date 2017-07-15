@@ -1,4 +1,4 @@
-import pyice_cffi as pyice
+from . import pyice_cffi as pyice
 import json
 import asyncio
 import urllib.parse
@@ -96,7 +96,8 @@ class Request:
                 self.raw_form = {}
             else:
                 self.raw_form = urllib.parse.parse_qs(self.under.get_body().decode())
-        
+                for k in self.raw_form:
+                    self.raw_form[k] = self.raw_form[k][0]
         return self.raw_form.get(k)
     
     def get_cookie_item(self, k):
@@ -125,6 +126,8 @@ class Request:
                     self.raw_args = {}
                 else:
                     self.raw_args = urllib.parse.parse_qs(p[1])
+                    for k in self.raw_args:
+                        self.raw_args[k] = self.raw_args[k][0]
         
         return self.raw_args.get(k)
 
@@ -164,6 +167,7 @@ class Response:
         c = http.cookies.SimpleCookie()
         for k in self.cookies:
             c[k] = self.cookies[k]
+            c[k]["path"] = "/"
         return c.output(header = "").strip()
     
     def set_body(self, data):
