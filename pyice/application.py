@@ -87,7 +87,9 @@ class Context:
         self.set_response(r)
     
     def jsonify(self, data):
-        return Response(json.dumps(data))
+        resp = Response(json.dumps(data))
+        resp.set_header("Content-Type", "application/json")
+        return resp
 
 class Request:
     def __init__(self, under, session_cookie = None):
