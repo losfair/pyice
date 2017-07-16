@@ -107,18 +107,19 @@ class Request:
     def json(self):
         return json.loads(self.under.get_body())
 
-    def get_form_item(self, k):
+    def get_form_item(self, key):
         if self.raw_form == None:
             raw_body = self.under.get_body()
+            self.raw_form = {}
             if raw_body == None:
-                self.raw_form = {}
+                pass
             else:
-                self.raw_form = urllib.parse.parse_qs(self.under.get_body().decode())
-                for k in self.raw_form:
-                    self.raw_form[k] = self.raw_form[k][0]
-        return self.raw_form.get(k)
+                raw_form = urllib.parse.parse_qs(self.under.get_body().decode())
+                for k in raw_form:
+                    self.raw_form[k] = raw_form[k][0]
+        return self.raw_form.get(key)
     
-    def get_cookie_item(self, k):
+    def get_cookie_item(self, key):
         if self.raw_cookies == None:
             raw_cookies_str = self.under.get_header("Cookie").decode()
             if raw_cookies_str == None or len(raw_cookies_str) == 0:
@@ -127,13 +128,13 @@ class Request:
                 self.raw_cookies = http.cookies.SimpleCookie()
                 self.raw_cookies.load(raw_cookies_str)
         
-        v = self.raw_cookies.get(k)
+        v = self.raw_cookies.get(key)
         if v == None:
             return None
         else:
             return v.value
     
-    def get_arg(self, k):
+    def get_arg(self, key):
         if self.raw_args == None:
             p = self.under.get_uri().decode()
             self.raw_args = {}
@@ -148,7 +149,7 @@ class Request:
                     for k in raw_args:
                         self.raw_args[k] = raw_args[k][0]
 
-        return self.raw_args.get(k)
+        return self.raw_args.get(key)
     
     def load_session(self):
         if self.session_cookie == None:
