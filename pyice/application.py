@@ -134,16 +134,17 @@ class Request:
     def get_arg(self, k):
         if self.raw_args == None:
             p = self.under.get_uri().decode()
+            self.raw_args = {}
             if p == None or len(p) == 0:
-                self.raw_args = {}
+                pass
             else:
                 p = p.split("?")
                 if len(p) < 2:
-                    self.raw_args = {}
+                    pass
                 else:
-                    self.raw_args = urllib.parse.parse_qs(p[1])
-                    for k in self.raw_args:
-                        self.raw_args[k] = self.raw_args[k][0]
+                    raw_args = urllib.parse.parse_qs(p[1])
+                    for k in raw_args:
+                        self.raw_args[k] = raw_args[k][0]
 
         return self.raw_args.get(k)
     
