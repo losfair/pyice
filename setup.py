@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name = "pyice",
     packages = ["pyice"],
-    version = "0.1.1",
+    version = "0.1.2",
     description = "Python 3 bindings for the Ice Web Framework",
     author = "Heyang Zhou",
     author_email = "i@ifxor.com",

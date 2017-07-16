@@ -9,6 +9,7 @@ typedef void * Resource;
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned int u32;
+typedef unsigned long long u64;
 
 typedef void (*AsyncEndpointHandler) (int id, Resource call_info);
 typedef Resource (*CallbackOnRequest) (const char *uri); // returns a Response
@@ -17,10 +18,17 @@ Resource ice_create_server();
 Resource ice_server_listen(Resource handle, const char *addr);
 Resource ice_server_router_add_endpoint(Resource handle, const char *p);
 void ice_server_set_static_dir(Resource handle, const char *d);
+void ice_server_set_session_timeout_ms(Resource handle, u64 t);
 
 const char * ice_glue_request_get_remote_addr(Resource req);
 const char * ice_glue_request_get_method(Resource req);
 const char * ice_glue_request_get_uri(Resource req);
+bool ice_glue_request_load_session(Resource req, const char *id);
+void ice_glue_request_create_session(Resource req);
+const char * ice_glue_request_get_session_id(Resource req);
+const char * ice_glue_request_get_session_item(Resource req, const char *k);
+void ice_glue_request_set_session_item(Resource req, const char *k, const char *v);
+void ice_glue_request_remove_session_item(Resource req, const char *k);
 
 void ice_glue_request_add_header(Resource t, const char *k, const char *v);
 const char * ice_glue_request_get_header(Resource t, const char *k);
@@ -46,7 +54,7 @@ void ice_core_endpoint_set_flag(Resource ep, const char *name, bool value);
 lib = ffi.dlopen("libice_core.so")
 
 class Ice:
-    def __init__(self):
+    def __init__(self, session_timeout_ms = 600000):
         self.server = lib.ice_create_server()
         self.req_cb = ffi.callback("AsyncEndpointHandler", self.async_endpoint_handler)
         self.endpoint_dispatch_table = []
@@ -56,6 +64,7 @@ class Ice:
             self.endpoint_dispatch_table.append(None)
 
         lib.ice_glue_register_async_endpoint_handler(self.req_cb)
+        lib.ice_server_set_session_timeout_ms(self.server, session_timeout_ms)
     
     def async_endpoint_handler(self, id, call_info):
         if id < 0 or self.endpoint_dispatch_table[id] == None:
@@ -147,6 +156,24 @@ class Request:
             return None
 
         return ffi.unpack(ffi.cast("const char *", raw_data), body_len)
+    
+    def load_session(self, id = None):
+        if id == None:
+            lib.ice_glue_request_create_session(self.handle)
+        else:
+            lib.ice_glue_request_load_session(self.handle, id.encode())
+    
+    def get_session_id(self):
+        return ffi.string(lib.ice_glue_request_get_session_id(self.handle))
+    
+    def get_session_item(self, k):
+        return ffi.string(lib.ice_glue_request_get_session_item(self.handle, k.encode()))
+    
+    def set_session_item(self, k, v):
+        lib.ice_glue_request_set_session_item(self.handle, k.encode(), v.encode())
+    
+    def remove_session_item(self, k):
+        lib.ice_glue_request_remove_session_item(self.handle, k.encode())
 
 class Response:
     def __init__(self, handle):

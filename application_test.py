@@ -3,17 +3,19 @@ import time
 
 app = pyice.application.Application()
 
-@app.route("/hello_world", methods = ["POST"])
+@app.route("/hello_world", methods = ["GET", "POST"])
 def on_hello_world(ctx):
-    print(ctx.request.headers.get("aaa"))
-    print(ctx.request.form.get("bbb"))
-    print(ctx.request.args.get("zzz"))
-    return "Hello world!"
+    #ctx.request.load_session()
+    resp = pyice.application.Response("Hello world!")
+    resp.set_header("Content-Type", "text/plain; charset=utf-8")
+    return resp
 
-@app.route("/hello_world_async", methods = ["POST"])
+@app.route("/hello_world_async", methods = ["GET", "POST"])
 async def on_hello_world_async(ctx):
-    print(ctx.request.form["ccc"])
-    return "Hello world! (Async)"
+    #ctx.request.load_session()
+    resp = pyice.application.Response("Hello world! (Async)")
+    resp.set_header("Content-Type", "text/plain; charset=utf-8")
+    return resp
 
 @app.route("/current_time", methods = ["GET", "POST"])
 async def on_current_time(ctx):

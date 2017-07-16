@@ -5,8 +5,9 @@ import urllib.parse
 import http.cookies
 
 class Application:
-    def __init__(self):
-        self.core = pyice.Ice()
+    def __init__(self, session_cookie = None):
+        self.session_cookie = session_cookie
+        self.core = pyice.Ice(session_timeout_ms = 20000)
         self.core.set_static_dir("./static")
     
     def route(self, path, methods = ["GET"]):
@@ -20,13 +21,13 @@ class Application:
             def wrapper(req, resp):
                 if check_method(req, resp) == False:
                     return
-                ctx = Context(func, req, resp)
+                ctx = Context(func, req, resp, session_cookie = self.session_cookie)
                 return ctx.run()
             
             async def async_wrapper(req, resp):
                 if check_method(req, resp) == False:
                     return
-                ctx = Context(func, req, resp)
+                ctx = Context(func, req, resp, session_cookie = self.session_cookie)
                 return await ctx.run_async()
             
             flags = []
@@ -44,12 +45,18 @@ class Application:
         return decorator
 
 class Context:
-    def __init__(self, func, req, resp):
+    def __init__(self, func, req, resp, session_cookie = None):
         self.func = func
-        self.request = Request(req)
+        self.request = Request(req, session_cookie = session_cookie)
         self._resp = resp
+        self.session_cookie = session_cookie
     
     def set_response(self, src):
+        if self.session_cookie != None:
+            session_id = self.request.under.get_session_id()
+            if session_id != None:
+                src.set_cookie(self.session_cookie, session_id.decode())
+
         body = src.get_body()
         if body != None:
             self._resp.set_body(body)
@@ -83,7 +90,7 @@ class Context:
         return Response(json.dumps(data))
 
 class Request:
-    def __init__(self, under):
+    def __init__(self, under, session_cookie = None):
         self.raw_args = None
         self.raw_form = None
         self.raw_cookies = None
@@ -92,6 +99,8 @@ class Request:
         self.form = RequestKV(self.get_form_item)
         self.cookies = RequestKV(self.get_cookie_item)
         self.args = RequestKV(self.get_arg)
+        self.session = RequestKV(self.under.get_session_item)
+        self.session_cookie = session_cookie
     
     def json(self):
         return json.loads(self.under.get_body())
@@ -135,8 +144,18 @@ class Request:
                     self.raw_args = urllib.parse.parse_qs(p[1])
                     for k in self.raw_args:
                         self.raw_args[k] = self.raw_args[k][0]
-        
+
         return self.raw_args.get(k)
+    
+    def load_session(self):
+        if self.session_cookie == None:
+            raise Exception("session_cookie required")
+        
+        v = self.cookies.get(self.session_cookie)
+        if v == None or len(v) == 0:
+            self.under.load_session()
+        else:
+            self.under.load_session(v)
 
 class RequestKV:
     def __init__(self, getter):
