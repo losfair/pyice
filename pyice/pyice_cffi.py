@@ -7,6 +7,7 @@ ffi = cffi.FFI()
 ffi.cdef('''
 typedef void * Resource;
 typedef unsigned char u8;
+typedef unsigned short u16;
 typedef unsigned int u32;
 
 typedef void (*AsyncEndpointHandler) (int id, Resource call_info);
@@ -15,6 +16,7 @@ typedef Resource (*CallbackOnRequest) (const char *uri); // returns a Response
 Resource ice_create_server();
 Resource ice_server_listen(Resource handle, const char *addr);
 Resource ice_server_router_add_endpoint(Resource handle, const char *p);
+void ice_server_set_static_dir(Resource handle, const char *d);
 
 const char * ice_glue_request_get_remote_addr(Resource req);
 const char * ice_glue_request_get_method(Resource req);
@@ -29,6 +31,8 @@ const char * ice_glue_response_get_header(Resource t, const char *k);
 Resource ice_glue_create_response();
 void ice_glue_response_set_body(Resource t, const u8 *body, u32 len);
 const u8 * ice_glue_request_get_body(Resource t, u32 *len_out);
+
+void ice_glue_response_set_status(Resource *t, u16 status);
 
 void ice_glue_register_async_endpoint_handler(AsyncEndpointHandler);
 
@@ -55,7 +59,7 @@ class Ice:
     
     def async_endpoint_handler(self, id, call_info):
         if id < 0 or self.endpoint_dispatch_table[id] == None:
-            target = self.error_endpoint
+            target = self.not_found_handler
         else:
             target = self.endpoint_dispatch_table[id]
 
@@ -80,6 +84,9 @@ class Ice:
         ep_id = lib.ice_core_endpoint_get_id(ep)
         self.endpoint_dispatch_table[ep_id] = handler
     
+    def set_static_dir(self, dir):
+        lib.ice_server_set_static_dir(self.server, dir.encode())
+    
     def listen(self, addr):
         lib.ice_server_listen(self.server, addr.encode())
 
@@ -93,6 +100,7 @@ class Ice:
             target(Request(lib.ice_core_borrow_request_from_call_info(call_info)), resp)
         except BaseException as e:
             print(e)
+            resp.set_status(500)
             resp.set_body("Error: " + str(e) + "\n")
 
         lib.ice_core_fire_callback(call_info, resp.handle)
@@ -105,12 +113,14 @@ class Ice:
             await target(req, resp)
         except BaseException as e:
             print(e)
+            resp.set_status(500)
             resp.set_body("Error: " + str(e) + "\n")
 
         lib.ice_core_fire_callback(call_info, resp.handle)
     
-    def error_endpoint(self, req, resp):
-        resp.set_body("Error\n")
+    def not_found_handler(self, req, resp):
+        resp.set_status(404)
+        resp.set_body("Not found\n")
 
 class Request:
     def __init__(self, handle):
@@ -157,3 +167,8 @@ class Response:
             raise Exception("Invalid data")
         
         lib.ice_glue_response_set_body(self.handle, data, len(data))
+
+    def set_status(self, status):
+        if type(status) != int or status < 100 or status >= 600:
+            raise Exception("Invalid status")
+        lib.ice_glue_response_set_status(self.handle, status)

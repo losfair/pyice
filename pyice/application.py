@@ -7,20 +7,25 @@ import http.cookies
 class Application:
     def __init__(self):
         self.core = pyice.Ice()
+        self.core.set_static_dir("./static")
     
     def route(self, path, methods = ["GET"]):
         def decorator(func):
-            def check_method(req):
+            def check_method(req, resp):
                 if not req.get_method().decode() in methods:
-                    raise Exception("Method not allowed")
+                    resp.set_status(405)
+                    return False
+                return True
 
             def wrapper(req, resp):
-                check_method(req)
+                if check_method(req, resp) == False:
+                    return
                 ctx = Context(func, req, resp)
                 return ctx.run()
             
             async def async_wrapper(req, resp):
-                check_method(req)
+                if check_method(req, resp) == False:
+                    return
                 ctx = Context(func, req, resp)
                 return await ctx.run_async()
             
@@ -55,6 +60,8 @@ class Context:
         
         for k in src.headers:
             self._resp.add_header(k, src.headers[k])
+        
+        self._resp.set_status(src.status)
     
     def run(self):
         r = self.func(self)
@@ -156,6 +163,7 @@ class Response:
         self.body = body
         self.cookies = {}
         self.headers = {}
+        self.status = 200
     
     def get_body(self):
         return self.body
@@ -178,3 +186,6 @@ class Response:
     
     def set_header(self, k, v):
         self.add_header(k, v)
+    
+    def set_status(self, status):
+        self.status = status

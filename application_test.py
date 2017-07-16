@@ -1,7 +1,7 @@
-import application
+import pyice
 import time
 
-app = application.Application()
+app = pyice.application.Application()
 
 @app.route("/hello_world", methods = ["POST"])
 def on_hello_world(ctx):
@@ -27,7 +27,7 @@ async def on_current_time(ctx):
 async def on_cookies(ctx):
     k = "test_cookie"
 
-    resp = application.Response(str(ctx.request.cookies.get(k)))
+    resp = pyice.application.Response(str(ctx.request.cookies.get(k)))
     resp.set_cookie(k, str(time.time()))
 
     return resp
