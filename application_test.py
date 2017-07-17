@@ -35,6 +35,11 @@ async def on_current_time(ctx):
         "time": time.time()
     })
 
+@app.route("/echo/:field_name", methods = ["POST"])
+def on_echo(ctx):
+    field_name = ctx.request.under.get_uri().decode().split("/")[-1]
+    return ctx.request.form[field_name]
+
 @app.route("/cookies", methods = ["GET"])
 async def on_cookies(ctx):
     k = "test_cookie"

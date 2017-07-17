@@ -149,7 +149,10 @@ class Request:
         self.handle = handle
     
     def get_header(self, k):
-        return ffi.string(lib.ice_glue_request_get_header(self.handle, k.encode()))
+        try:
+            return ffi.string(lib.ice_glue_request_get_header(self.handle, k.encode()))
+        except:
+            return None
     
     def get_remote_addr(self):
         return ffi.string(lib.ice_glue_request_get_remote_addr(self.handle))
@@ -163,7 +166,7 @@ class Request:
     def get_body(self):
         body_len_p = ffi.new("u32 *")
         raw_data = lib.ice_glue_request_get_body(self.handle, body_len_p)
-        
+
         body_len = int(body_len_p[0])
         if body_len == 0:
             return None
@@ -174,13 +177,21 @@ class Request:
         if id == None:
             lib.ice_glue_request_create_session(self.handle)
         else:
-            lib.ice_glue_request_load_session(self.handle, id.encode())
+            ret = lib.ice_glue_request_load_session(self.handle, id.encode())
+            if ret == 0 or ret == False:
+                lib.ice_glue_request_create_session(self.handle)
     
     def get_session_id(self):
-        return ffi.string(lib.ice_glue_request_get_session_id(self.handle))
+        try:
+            return ffi.string(lib.ice_glue_request_get_session_id(self.handle))
+        except:
+            return None
     
     def get_session_item(self, k):
-        return ffi.string(lib.ice_glue_request_get_session_item(self.handle, k.encode()))
+        try:
+            return ffi.string(lib.ice_glue_request_get_session_item(self.handle, k.encode()))
+        except:
+            return None
     
     def set_session_item(self, k, v):
         lib.ice_glue_request_set_session_item(self.handle, k.encode(), v.encode())

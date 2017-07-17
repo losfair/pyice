@@ -5,9 +5,9 @@ import urllib.parse
 import http.cookies
 
 class Application:
-    def __init__(self, session_cookie = None):
+    def __init__(self, session_cookie = None, session_timeout_ms = 600000):
         self.session_cookie = session_cookie
-        self.core = pyice.Ice(session_timeout_ms = 20000)
+        self.core = pyice.Ice(session_timeout_ms = session_timeout_ms)
         self.core.set_static_dir("./static")
     
     def route(self, path, methods = ["GET"], blocking = False):
@@ -109,8 +109,9 @@ class Request:
         self.form = RequestKV(self.get_form_item)
         self.cookies = RequestKV(self.get_cookie_item)
         self.args = RequestKV(self.get_arg)
-        self.session = RequestKV(self.under.get_session_item)
+        self.session = RequestKV(self.get_session_item, self.set_session_item)
         self.session_cookie = session_cookie
+        self.session_loaded = False
     
     def json(self):
         return json.loads(self.under.get_body())
@@ -159,19 +160,44 @@ class Request:
 
         return self.raw_args.get(key)
     
+    def set_session_item(self, k, v):
+        if self.session_loaded == False:
+            raise Exception("Attempting to set session item before loading")
+        if v == None:
+            self.under.remove_session_item(k)
+        else:
+            self.under.set_session_item(k, v)
+    
+    def get_session_item(self, k):
+        if self.session_loaded == False:
+            raise Exception("Attempting to get session item before loading")
+        v = self.under.get_session_item(k)
+        if v == None:
+            return None
+        return v.decode()
+    
     def load_session(self):
         if self.session_cookie == None:
             raise Exception("session_cookie required")
+        
+        if self.session_loaded:
+            return
         
         v = self.cookies.get(self.session_cookie)
         if v == None or len(v) == 0:
             self.under.load_session()
         else:
             self.under.load_session(v)
+        
+        if self.under.get_session_id() != None:
+            self.session_loaded = True
+        else:
+            print("Warning: Session still not loaded after trying")
 
 class RequestKV:
-    def __init__(self, getter):
+    def __init__(self, getter, setter = None):
         self.getter = getter
+        self.setter = setter
 
     def get(self, key, default = None):
         if type(key) != str:
@@ -188,6 +214,11 @@ class RequestKV:
         if ret == None:
             raise KeyError(key)
         return ret
+    
+    def __setitem__(self, k, v):
+        if self.setter == None:
+            raise Exception("Setter not set")
+        self.setter(k, v)
 
 class Response:
     def __init__(self, body = None):
