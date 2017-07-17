@@ -17,6 +17,16 @@ async def on_hello_world_async(ctx):
     resp.set_header("Content-Type", "text/plain; charset=utf-8")
     return resp
 
+@app.route("/hello_world_blocking", methods = ["GET", "POST"], blocking = True)
+def on_hello_world_blocking(ctx):
+    resp = pyice.application.Response("Hello world! (Blocking)")
+    resp.set_header("Content-Type", "text/plain; charset=utf-8")
+    return resp
+
+@app.route("/redirect_to_google", blocking = True)
+def on_redirect_to_google(ctx):
+    return ctx.redirect("https://www.google.com")
+
 @app.route("/current_time", methods = ["GET", "POST"])
 async def on_current_time(ctx):
     return ctx.jsonify({

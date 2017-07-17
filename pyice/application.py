@@ -10,7 +10,7 @@ class Application:
         self.core = pyice.Ice(session_timeout_ms = 20000)
         self.core.set_static_dir("./static")
     
-    def route(self, path, methods = ["GET"]):
+    def route(self, path, methods = ["GET"], blocking = False):
         def decorator(func):
             def check_method(req, resp):
                 if not req.get_method().decode() in methods:
@@ -35,11 +35,13 @@ class Application:
                 flags.append("read_body")
             
             if asyncio.iscoroutinefunction(func):
+                if blocking:
+                    raise Exception("Conflict: blocking & async")
                 handler = async_wrapper
             else:
                 handler = wrapper
 
-            self.core.add_endpoint(path, handler = handler, flags = flags)
+            self.core.add_endpoint(path, handler = handler, flags = flags, blocking = blocking)
             return handler
         
         return decorator
@@ -89,6 +91,12 @@ class Context:
     def jsonify(self, data):
         resp = Response(json.dumps(data))
         resp.set_header("Content-Type", "application/json")
+        return resp
+    
+    def redirect(self, location, code = 302):
+        resp = Response()
+        resp.set_status(code)
+        resp.set_header("Location", location)
         return resp
 
 class Request:

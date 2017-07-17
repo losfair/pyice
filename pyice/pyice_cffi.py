@@ -62,27 +62,21 @@ class Ice:
 
         for i in range(65536):
             self.endpoint_dispatch_table.append(None)
+        
+        self.not_found = DispatchTarget(self, self.not_found_handler, blocking = True)
 
         lib.ice_glue_register_async_endpoint_handler(self.req_cb)
         lib.ice_server_set_session_timeout_ms(self.server, session_timeout_ms)
     
     def async_endpoint_handler(self, id, call_info):
         if id < 0 or self.endpoint_dispatch_table[id] == None:
-            target = self.not_found_handler
+            target = self.not_found
         else:
             target = self.endpoint_dispatch_table[id]
+        
+        target(call_info)
 
-        if asyncio.iscoroutinefunction(target):
-            self.ev_loop.call_soon_threadsafe(
-                lambda: self.ev_loop.create_task(
-                    self.run_endpoint_async(call_info, target)
-                )
-            )
-        else:
-            t = threading.Thread(target = lambda: self.run_endpoint(call_info, target))
-            t.start()
-
-    def add_endpoint(self, path, handler = None, flags = []):
+    def add_endpoint(self, path, handler = None, flags = [], blocking = False):
         if handler == None:
             raise Exception("handler required")
         ep = lib.ice_server_router_add_endpoint(self.server, path.encode())
@@ -91,7 +85,7 @@ class Ice:
             lib.ice_core_endpoint_set_flag(ep, f.encode(), True)
 
         ep_id = lib.ice_core_endpoint_get_id(ep)
-        self.endpoint_dispatch_table[ep_id] = handler
+        self.endpoint_dispatch_table[ep_id] = DispatchTarget(self, handler, blocking = blocking)
     
     def set_static_dir(self, dir):
         lib.ice_server_set_static_dir(self.server, dir.encode())
@@ -130,6 +124,25 @@ class Ice:
     def not_found_handler(self, req, resp):
         resp.set_status(404)
         resp.set_body("Not found\n")
+
+class DispatchTarget:
+    def __init__(self, server, handler, blocking = False):
+        self.server = server
+        self.handler = handler
+        self.blocking = blocking
+    
+    def __call__(self, call_info):
+        if self.blocking:
+            self.server.run_endpoint(call_info, self.handler)
+        elif asyncio.iscoroutinefunction(self.handler):
+            self.server.ev_loop.call_soon_threadsafe(
+                lambda: self.server.ev_loop.create_task(
+                    self.server.run_endpoint_async(call_info, self.handler)
+                )
+            )
+        else:
+            t = threading.Thread(target = lambda: self.server.run_endpoint(call_info, self.handler))
+            t.start()
 
 class Request:
     def __init__(self, handle):
