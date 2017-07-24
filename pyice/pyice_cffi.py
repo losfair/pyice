@@ -18,7 +18,10 @@ Resource ice_create_server();
 Resource ice_server_listen(Resource handle, const char *addr);
 Resource ice_server_router_add_endpoint(Resource handle, const char *p);
 void ice_server_set_static_dir(Resource handle, const char *d);
+void ice_server_set_session_cookie_name(Resource handle, const char *name);
 void ice_server_set_session_timeout_ms(Resource handle, u64 t);
+bool ice_server_add_template(Resource handle, const char *name, const char *content);
+void ice_server_set_max_request_body_size(Resource handle, u32 size);
 
 const char * ice_glue_request_get_remote_addr(Resource req);
 const char * ice_glue_request_get_method(Resource req);
@@ -30,17 +33,31 @@ const char * ice_glue_request_get_session_item(Resource req, const char *k);
 void ice_glue_request_set_session_item(Resource req, const char *k, const char *v);
 void ice_glue_request_remove_session_item(Resource req, const char *k);
 
+const char * ice_glue_request_get_stats(Resource req);
+void ice_glue_request_set_custom_stat(Resource req, const char *k, const char *v);
+
 void ice_glue_request_add_header(Resource t, const char *k, const char *v);
 const char * ice_glue_request_get_header(Resource t, const char *k);
 
+const char * ice_glue_request_get_cookie(Resource t, const char *k);
+
+Resource ice_glue_request_create_header_iterator(Resource t);
+const char * ice_glue_request_header_iterator_next(Resource t, Resource itr_p);
+void ice_glue_destroy_header_iterator(Resource itr_p);
+
 void ice_glue_response_add_header(Resource t, const char *k, const char *v);
 const char * ice_glue_response_get_header(Resource t, const char *k);
+void ice_glue_response_set_cookie(Resource t, const char *k, const char *v, const char *options);
 
 Resource ice_glue_create_response();
 void ice_glue_response_set_body(Resource t, const u8 *body, u32 len);
 const u8 * ice_glue_request_get_body(Resource t, u32 *len_out);
+void ice_glue_response_set_file(Resource t, const char *path);
 
-void ice_glue_response_set_status(Resource *t, u16 status);
+void ice_glue_response_set_status(Resource t, u16 status);
+
+char * ice_glue_request_render_template_to_owned(Resource t, const char *name, const char *data);
+bool ice_glue_response_consume_rendered_template(Resource t, char *output);
 
 void ice_glue_register_async_endpoint_handler(AsyncEndpointHandler);
 
@@ -153,6 +170,12 @@ class Request:
             return ffi.string(lib.ice_glue_request_get_header(self.handle, k.encode()))
         except:
             return None
+        
+    def get_cookie(self, k):
+        try:
+            return ffi.string(lib.ice_glue_request_get_cookie(self.handle, k.encode()))
+        except:
+            return None
     
     def get_remote_addr(self):
         return ffi.string(lib.ice_glue_request_get_remote_addr(self.handle))
@@ -172,20 +195,6 @@ class Request:
             return None
 
         return ffi.unpack(ffi.cast("const char *", raw_data), body_len)
-    
-    def load_session(self, id = None):
-        if id == None:
-            lib.ice_glue_request_create_session(self.handle)
-        else:
-            ret = lib.ice_glue_request_load_session(self.handle, id.encode())
-            if ret == 0 or ret == False:
-                lib.ice_glue_request_create_session(self.handle)
-    
-    def get_session_id(self):
-        try:
-            return ffi.string(lib.ice_glue_request_get_session_id(self.handle))
-        except:
-            return None
     
     def get_session_item(self, k):
         try:
@@ -223,3 +232,9 @@ class Response:
         if type(status) != int or status < 100 or status >= 600:
             raise Exception("Invalid status")
         lib.ice_glue_response_set_status(self.handle, status)
+    
+    def set_cookie(self, k, v):
+        if type(k) != str or type(v) != str:
+            raise Exception("Invalid key or value")
+        
+        lib.ice_glue_response_set_cookie(self.handle, k.encode(), v.encode(), "".encode())

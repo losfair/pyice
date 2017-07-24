@@ -5,12 +5,11 @@ import urllib.parse
 import http.cookies
 
 class Application:
-    def __init__(self, session_cookie = None, session_timeout_ms = 600000):
-        self.session_cookie = session_cookie
+    def __init__(self, session_timeout_ms = 600000):
         self.core = pyice.Ice(session_timeout_ms = session_timeout_ms)
         self.core.set_static_dir("./static")
     
-    def route(self, path, methods = ["GET"], blocking = False):
+    def route(self, path, methods = ["GET"], flags = [], blocking = False):
         def decorator(func):
             def check_method(req, resp):
                 if not req.get_method().decode() in methods:
@@ -21,16 +20,15 @@ class Application:
             def wrapper(req, resp):
                 if check_method(req, resp) == False:
                     return
-                ctx = Context(func, req, resp, session_cookie = self.session_cookie)
+                ctx = Context(func, req, resp)
                 return ctx.run()
             
             async def async_wrapper(req, resp):
                 if check_method(req, resp) == False:
                     return
-                ctx = Context(func, req, resp, session_cookie = self.session_cookie)
+                ctx = Context(func, req, resp)
                 return await ctx.run_async()
             
-            flags = []
             if "POST" in methods:
                 flags.append("read_body")
             
@@ -47,25 +45,18 @@ class Application:
         return decorator
 
 class Context:
-    def __init__(self, func, req, resp, session_cookie = None):
+    def __init__(self, func, req, resp):
         self.func = func
-        self.request = Request(req, session_cookie = session_cookie)
+        self.request = Request(req)
         self._resp = resp
-        self.session_cookie = session_cookie
     
     def set_response(self, src):
-        if self.session_cookie != None:
-            session_id = self.request.under.get_session_id()
-            if session_id != None:
-                src.set_cookie(self.session_cookie, session_id.decode())
-
         body = src.get_body()
         if body != None:
             self._resp.set_body(body)
-
-        c = src.marshal_cookies()
-        if c != None and len(c) > 0:
-            self._resp.add_header("Set-Cookie", c)
+        
+        for k in src.cookies:
+            self._resp.set_cookie(k, src.cookies[k])
         
         for k in src.headers:
             self._resp.add_header(k, src.headers[k])
@@ -100,7 +91,7 @@ class Context:
         return resp
 
 class Request:
-    def __init__(self, under, session_cookie = None):
+    def __init__(self, under):
         self.raw_args = None
         self.raw_form = None
         self.raw_cookies = None
@@ -110,8 +101,6 @@ class Request:
         self.cookies = RequestKV(self.get_cookie_item)
         self.args = RequestKV(self.get_arg)
         self.session = RequestKV(self.get_session_item, self.set_session_item)
-        self.session_cookie = session_cookie
-        self.session_loaded = False
     
     def json(self):
         return json.loads(self.under.get_body())
@@ -129,19 +118,7 @@ class Request:
         return self.raw_form.get(key)
     
     def get_cookie_item(self, key):
-        if self.raw_cookies == None:
-            raw_cookies_str = self.under.get_header("Cookie").decode()
-            if raw_cookies_str == None or len(raw_cookies_str) == 0:
-                self.raw_cookies = {}
-            else:
-                self.raw_cookies = http.cookies.SimpleCookie()
-                self.raw_cookies.load(raw_cookies_str)
-        
-        v = self.raw_cookies.get(key)
-        if v == None:
-            return None
-        else:
-            return v.value
+        return self.under.get_cookie(key).decode()
     
     def get_arg(self, key):
         if self.raw_args == None:
@@ -161,38 +138,16 @@ class Request:
         return self.raw_args.get(key)
     
     def set_session_item(self, k, v):
-        if self.session_loaded == False:
-            raise Exception("Attempting to set session item before loading")
         if v == None:
             self.under.remove_session_item(k)
         else:
             self.under.set_session_item(k, v)
     
     def get_session_item(self, k):
-        if self.session_loaded == False:
-            raise Exception("Attempting to get session item before loading")
         v = self.under.get_session_item(k)
         if v == None:
             return None
         return v.decode()
-    
-    def load_session(self):
-        if self.session_cookie == None:
-            raise Exception("session_cookie required")
-        
-        if self.session_loaded:
-            return
-        
-        v = self.cookies.get(self.session_cookie)
-        if v == None or len(v) == 0:
-            self.under.load_session()
-        else:
-            self.under.load_session(v)
-        
-        if self.under.get_session_id() != None:
-            self.session_loaded = True
-        else:
-            print("Warning: Session still not loaded after trying")
 
 class RequestKV:
     def __init__(self, getter, setter = None):
@@ -232,13 +187,6 @@ class Response:
     
     def set_cookie(self, k, v):
         self.cookies[k] = v
-    
-    def marshal_cookies(self):
-        c = http.cookies.SimpleCookie()
-        for k in self.cookies:
-            c[k] = self.cookies[k]
-            c[k]["path"] = "/"
-        return c.output(header = "").strip()
     
     def set_body(self, data):
         self.body = data

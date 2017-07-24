@@ -49,4 +49,10 @@ async def on_cookies(ctx):
 
     return resp
 
+@app.route("/session", methods = ["GET"], flags = ["init_session"])
+def on_session(ctx):
+    v = str(ctx.request.session.get("t"))
+    ctx.request.session["t"] = str(time.time())
+    return pyice.application.Response(v)
+
 app.core.listen("127.0.0.1:1405")
